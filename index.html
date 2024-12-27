@@ -137,7 +137,7 @@
                 const yPos = pageY + rowCount * cellHeight;
 
                 const rowData = [
-                    excelDateToJSDate(item[6]), // Fecha de Evento
+                    item[5], // Fecha de Evento (campo 6)
                     item[1] || "",
                     item[2] || "",
                     isNaN(item[3]) ? item[3] || "" : "Llamado de atención",
@@ -178,8 +178,8 @@
 
                 // Cuerpo
                 doc.setFontSize(10);
-                doc.text(`Fecha Novedad: ${excelDateToJSDate(item[6])}`, 10, 30 + yOffset);
-                doc.text(`Fecha Inicio Evento: ${excelDateToJSDate(item[5])}`, 10, 35 + yOffset);
+                doc.text(`Fecha Novedad: ${excelDateToJSDate(item[5])}`, 10, 30 + yOffset);
+                doc.text(`Fecha Inicio Evento: ${excelDateToJSDate(item[6])}`, 10, 35 + yOffset); // Fecha Inicio Evento (campo 6)
                 doc.text(`Torre: ${item[1]}`, 100, 30 + yOffset);
                 doc.text(`Apartamento: ${item[2]}`, 140, 30 + yOffset);
 
@@ -205,4 +205,3 @@
 </body>
 
 </html>
-
