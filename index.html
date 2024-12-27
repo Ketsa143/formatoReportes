@@ -137,7 +137,7 @@
                 const yPos = pageY + rowCount * cellHeight;
 
                 const rowData = [
-                    item[6] || "",
+                    excelDateToJSDate(item[6]), // Fecha de Evento
                     item[1] || "",
                     item[2] || "",
                     isNaN(item[3]) ? item[3] || "" : "Llamado de atención",
@@ -170,13 +170,11 @@
                 const yOffset = index % 2 * 140;
                 if (index % 2 === 0 && index !== 0) doc.addPage();
 
-                
-                 // Encabezado
-                 doc.addImage('img.jpeg', 'JPEG', 15, 10 + yOffset, 30, 15);
-                 doc.setFontSize(12);
-                 doc.text(`CONJUNTO RESIDENCIAL GERONA DEL PORVENIR`, 105, 15 + yOffset, null, null, 'center');
-                 doc.setFontSize(10);
-                 doc.text(`NIT 900,576,118-7`, 105, 20 + yOffset, null, null, 'center');
+                // Encabezado
+                doc.setFontSize(12);
+                doc.text(`CONJUNTO RESIDENCIAL GERONA DEL PORVENIR`, 105, 15 + yOffset, null, null, 'center');
+                doc.setFontSize(10);
+                doc.text(`NIT 900,576,118-7`, 105, 20 + yOffset, null, null, 'center');
 
                 // Cuerpo
                 doc.setFontSize(10);
@@ -207,3 +205,4 @@
 </body>
 
 </html>
+
