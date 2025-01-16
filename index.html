@@ -62,6 +62,38 @@
     </header>
 
     <script>
+        function procesarFecha(fecha) {
+            if (typeof fecha === 'number') {
+                // Caso: Fecha como número serial de Excel
+                const utcDays = fecha - 25569; // Ajuste de días desde el 1 de enero de 1970
+                const utcValue = utcDays * 86400; // Convertir días a segundos
+                const date = new Date(utcValue * 1000); // Crear objeto Date sin ajustes de zona horaria
+                const day = date.getUTCDate().toString().padStart(2, '0');
+                const month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // getUTCMonth() es 0-indexado
+                const year = date.getUTCFullYear();
+                return `${day}/${month}/${year}`;
+            } else if (typeof fecha === 'string') {
+                // Caso: Fecha en formato texto (e.g., DD/MM/YYYY o variantes)
+                const parts = fecha.split('/');
+                if (parts.length === 3) {
+                    const [day, month, year] = parts.map(Number);
+                    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                        return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+                    }
+                }
+            } else if (fecha instanceof Date) {
+                // Caso: Fecha como objeto Date
+                const day = fecha.getDate().toString().padStart(2, '0');
+                const month = (fecha.getMonth() + 1).toString().padStart(2, '0');
+                const year = fecha.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+            // Caso: Fecha inválida o no reconocida
+            return 'Fecha inválida';
+        }
+
+
+
         let datosReporte = [];
 
         // Leer archivo Excel
@@ -80,81 +112,84 @@
             reader.readAsBinaryString(file);
         });
 
-        // Función para convertir fechas de Excel
-        function excelDateToJSDate(date) {
-            if (!date || isNaN(date)) return "N/A";
-            return new Date(Math.round((date - 25569) * 86400 * 1000)).toLocaleDateString();
-        }
-
-        // Generar Lista (PDF horizontal)
         function generarLista() {
             if (datosReporte.length === 0) {
                 alert("Primero carga un archivo Excel.");
                 return;
             }
-
+        
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4');
             doc.setFontSize(8);
-
+        
             const startY = 30;
             const cellHeight = 8;
             const maxRowsPerPage = 16;
             const marginX = 5;
             const colWidths = [25, 18, 22, 40, 30, 30, 30, 30, 22, 30];
-
+        
             const headers = [
                 "Fecha de Evento", "Torre", "Apartamento", "Concepto",
                 "Arrendatario", "Propietario", "Nombre de quien recibe",
                 "Fecha de Recibido", "Firma", "Observaciones"
             ];
-
+        
             let rowCount = 0;
             let pageY = startY;
-
+        
             function drawHeader() {
                 let x = marginX;
                 doc.setFillColor(255, 248, 220);
                 doc.rect(marginX, pageY - 10, colWidths.reduce((a, b) => a + b), 10, 'F');
-
+        
                 headers.forEach((header, index) => {
                     doc.text(header, x + colWidths[index] / 2, pageY - 3, null, null, 'center');
                     x += colWidths[index];
                 });
             }
-
+        
             drawHeader();
-
+        
             datosReporte.forEach((item, rowIndex) => {
+                // Validar si los campos de la fila están vacíos
+                const camposVacios = [1, 2, 3, 4, 5, 6, 7].every(i => !item[i] || item[i].toString().trim() === '');
+        
+                if (camposVacios) {
+                    // Omitir esta fila si todos los campos relevantes están vacíos
+                    return;
+                }
+        
                 if (rowCount >= maxRowsPerPage) {
                     doc.addPage();
                     pageY = startY;
                     rowCount = 0;
                     drawHeader();
                 }
-
+        
                 let xPos = marginX;
                 const yPos = pageY + rowCount * cellHeight;
-
+        
                 const rowData = [
-                    item[5], // Fecha de Evento (campo 6)
+                    procesarFecha(item[5]), // Usar procesarFecha para la fecha de evento (campo 6)
                     item[1] || "",
                     item[2] || "",
                     isNaN(item[3]) ? item[3] || "" : "Llamado de atención",
-                    "", "", "", "", "", ""
+                    "", "", "", procesarFecha(item[7]), "", "" // También procesar la fecha de recibido (campo 7)
                 ];
-
+        
                 rowData.forEach((text, colIndex) => {
                     doc.text(String(text), xPos + colWidths[colIndex] / 2, yPos + cellHeight / 2, null, null, 'center');
                     doc.rect(xPos, yPos, colWidths[colIndex], cellHeight);
                     xPos += colWidths[colIndex];
                 });
-
+        
                 rowCount++;
             });
-
+        
             doc.save('lista_eventos.pdf');
         }
+        
+        
 
         // Generar Impresión (PDF vertical)
         function generarImpresion() {
@@ -166,41 +201,89 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
 
-            datosReporte.forEach((item, index) => {
-                const yOffset = index % 2 * 140;
-                if (index % 2 === 0 && index !== 0) doc.addPage();
+            // Cargar la imagen
+            const imgPath = 'img.jpeg'; // Ruta de la imagen
+            const imgX = 10; // Coordenada X de la imagen
+            const imgY = 10; // Coordenada Y de la imagen
+            const imgWidth = 30; // Ancho de la imagen
+            const imgHeight = 30; // Alto de la imagen
 
-                // Encabezado
-                doc.setFontSize(12);
-                doc.text(`CONJUNTO RESIDENCIAL GERONA DEL PORVENIR`, 105, 15 + yOffset, null, null, 'center');
-                doc.setFontSize(10);
-                doc.text(`NIT 900,576,118-7`, 105, 20 + yOffset, null, null, 'center');
+            // Leer la imagen como Base64
+            const loadImage = (path, callback) => {
+                const img = new Image();
+                img.src = path;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const base64Image = canvas.toDataURL('image/jpeg');
+                    callback(base64Image);
+                };
+                img.onerror = () => {
+                    alert('Error al cargar la imagen.');
+                };
+            };
 
-                // Cuerpo
-                doc.setFontSize(10);
-                doc.text(`Fecha Novedad: ${excelDateToJSDate(item[5])}`, 10, 30 + yOffset);
-                doc.text(`Fecha Inicio Evento: ${excelDateToJSDate(item[6])}`, 10, 35 + yOffset); // Fecha Inicio Evento (campo 6)
-                doc.text(`Torre: ${item[1]}`, 100, 30 + yOffset);
-                doc.text(`Apartamento: ${item[2]}`, 140, 30 + yOffset);
+            loadImage(imgPath, (base64Image) => {
+                datosReporte.forEach((item, index) => {
+                    // Validar si los campos están vacíos
+                    const camposVacios = [1, 2, 3, 4, 5, 6, 7].every(i => !item[i] || item[i].toString().trim() === '');
+                    if (camposVacios) {
+                        return; // Omitir fila si todos los campos están vacíos
+                    }
 
-                const llamado = `Llamado de Atención: 1er (${item[3] === 1 ? 'X' : ' '}) 2do (${item[3] === 2 ? 'X' : ' '}) 3ro (${item[3] === 3 ? 'X' : ' '})`;
-                doc.text(llamado, 10, 45 + yOffset);
+                    const yOffset = index % 2 * 140;
+                    if (index % 2 === 0 && index !== 0) doc.addPage();
 
-                const isMulta = item[3]?.toString().toLowerCase().includes('multa');
-                doc.text(`Multa: ${isMulta ? 'SI (X)' : 'NO ( )'}`, 10, 55 + yOffset);
+                    // Agregar la imagen
+                    doc.addImage(base64Image, 'JPEG', imgX, imgY + yOffset, imgWidth, imgHeight);
 
-                doc.rect(10, 60 + yOffset, 190, 8);
-                doc.text(`Motivo: ${item[4]}`, 12, 65 + yOffset);
+                    // Línea horizontal que divide la hoja en dos
+                    doc.setDrawColor(0, 0, 0);
+                    doc.setLineWidth(0.5);
+                    doc.line(10, 148, 200, 148);
 
-                doc.line(10, 75 + yOffset, 200, 75 + yOffset);
-                doc.text(`Quien reporta: Empresa de Seguridad`, 12, 74 + yOffset);
+                    // Encabezado
+                    doc.setFontSize(12);
+                    doc.text(`CONJUNTO RESIDENCIAL GERONA DEL PORVENIR`, 105, 15 + yOffset, null, null, 'center');
+                    doc.setFontSize(10);
+                    doc.text(`NIT 900,576,118-7`, 105, 20 + yOffset, null, null, 'center');
 
-                doc.line(10, 80 + yOffset, 200, 80 + yOffset);
-                doc.text(`Aprobado por: Comité de Convivencia`, 12, 79 + yOffset);
+                    // Cuerpo
+                    doc.setFontSize(10);
+                    doc.text(`Fecha Novedad: ${procesarFecha(item[5])}`, 10, 50 + yOffset);
+                    doc.text(`Fecha Inicio Evento: ${procesarFecha(item[6])}`, 10, 55 + yOffset);
+                    doc.text(`Torre: ${item[1]}`, 100, 50 + yOffset);
+                    doc.text(`Apartamento: ${item[2]}`, 140, 50 + yOffset);
+
+                    const llamado = `Llamado de Atención: 1er (${item[3] === 1 ? 'X' : ' '}) 2do (${item[3] === 2 ? 'X' : ' '}) 3ro (${item[3] === 3 ? 'X' : ' '})`;
+                    doc.text(llamado, 10, 65 + yOffset);
+
+                    const isMulta = item[3]?.toString().toLowerCase().includes('multa');
+                    doc.text(`Multa: ${isMulta ? 'SI (X)' : 'NO ( )'}`, 10, 75 + yOffset);
+
+                    // Campo Motivo con ajuste de texto
+                    const motivo = `Motivo: ${item[4]}`;
+                    const maxWidth = 186;
+                    const lines = doc.splitTextToSize(motivo, maxWidth);
+                    doc.rect(10, 80 + yOffset, 190, 8 + (lines.length - 1) * 5);
+                    doc.text(lines, 12, 85 + yOffset);
+
+                    doc.line(10, 95 + yOffset + (lines.length - 1) * 5, 200, 95 + yOffset + (lines.length - 1) * 5);
+                    doc.text(`Quien reporta: Empresa de Seguridad`, 12, 94 + yOffset + (lines.length - 1) * 5);
+
+                    doc.line(10, 100 + yOffset + (lines.length - 1) * 5, 200, 100 + yOffset + (lines.length - 1) * 5);
+                    doc.text(`Aprobado por: Comité de Convivencia`, 12, 99 + yOffset + (lines.length - 1) * 5);
+                });
+
+                doc.save('reporte_impresion.pdf');
             });
-
-            doc.save('reporte_impresion.pdf');
         }
+
+
+
     </script>
 </body>
 
